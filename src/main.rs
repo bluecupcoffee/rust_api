@@ -6,12 +6,13 @@ use std::io::BufRead;
 use std::path::Path;
 use sqlx::{Pool, Error};
 use sqlx_mysql::{MySql, MySqlPool, MySqlQueryResult};
-use crate::models::{Person, PersonGenerator};
+use crate::models::{Person, PersonGenerator, Colors};
 
 #[tokio::main]
 async fn main() {
     let db_url = "mysql://root:my-secret-pw@127.0.0.1:3306/rust_api";
     let pool = MySqlPool::connect(db_url).await.unwrap();
+    println!("{:#?}", pool);
 
     let mut pg = PersonGenerator::new(String::from("name_list.txt"), 10);
     let load_res = pg.load_names();
@@ -26,12 +27,11 @@ async fn main() {
     let people = pg.generate_population();
     let v = insert_people(&pool, &people).await;
     for i in &v {
-        if let Err(e) = i {
-            eprintln!("Error occurred while inserting: {e}");
-            std::process::exit(1);
+        match i {
+            Ok(r) => println!("{:#?}", i),
+            Err(e) => {eprintln!("Error occurred while inserting record:\n {:#?}", e);}
         }
     }
-    println!("{} records successfully created",v.len());
 
     // let db_url = "mysql://root:my-secret-pw@127.0.0.1:3306/rust_api";
     // let pool = MySqlPool::connect(db_url).await.unwrap();
@@ -75,11 +75,15 @@ async fn insert_people(pool: &MySqlPool, vp: &Vec<Person>) -> Vec<Result<MySqlQu
     let mut v: Vec<Result<MySqlQueryResult, Error>> = Vec::new();
     for p in vp {
         let insert_query = format!(
-            "INSERT INTO rust_api.test_table (name, color) VALUES (\'{}\', \'{}\');",
-            p.name, p.color
+            "INSERT INTO rust_api.test_table (name, color) VALUES (?, ?);",
         );
         println!("{insert_query}");
-        let insert_res = sqlx::query(insert_query.as_str())
+        let insert_res = sqlx::query(
+            "INSERT INTO rust_api.test_table (name, color)\
+            VALUES (?, ?)"
+        )
+            .bind(p.name.clone())
+            .bind(p.color.to_string())
             .execute(pool)
             .await;
 
