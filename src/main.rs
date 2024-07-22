@@ -1,4 +1,5 @@
 mod models;
+mod threadpool;
 
 use std::{fs, io};
 use std::fs::File;
@@ -72,12 +73,13 @@ async fn replace_test_table(pool: &MySqlPool) -> Result<MySqlQueryResult, Error>
 }
 
 async fn insert_people(pool: &MySqlPool, vp: &Vec<Person>) -> Vec<Result<MySqlQueryResult, Error>> {
+    if let mut max_conn = pool.options().get_max_connections() {
+        if !(max_conn > 1) {
+            max_conn =1;
+        }
+    }
     let mut v: Vec<Result<MySqlQueryResult, Error>> = Vec::new();
     for p in vp {
-        let insert_query = format!(
-            "INSERT INTO rust_api.test_table (name, color) VALUES (?, ?);",
-        );
-        println!("{insert_query}");
         let insert_res = sqlx::query(
             "INSERT INTO rust_api.test_table (name, color)\
             VALUES (?, ?)"
